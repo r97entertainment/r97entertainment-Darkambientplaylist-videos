@@ -168,10 +168,10 @@ ffmpeg -loop 1 -framerate 24 -i "$TMP_DIR/wallpaper.jpg" \
   -filter_complex "\
     [0:v]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,setsar=1,fps=24,format=yuv420p[bg];\
     [1:v]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,setsar=1,fps=24,format=yuv420p[scr];\
-    [bg][scr]blend=all_mode=overlay:all_opacity=0.2,format=yuv420p[v]" \
-  -map "[v]" -c:v libx264 -preset veryfast -crf 20 -an "$BLENDED_MASTER" -y -loglevel error
+    [bg][scr]blend=all_mode=overlay:all_opacity=0.35,format=yuv420p[v]" \
+  -map "[v]" -c:v libx264 -preset veryfast -crf 18 -an "$BLENDED_MASTER" -y -loglevel error
 
-ENC_FLAGS="-c:v libx264 -profile:v high -level:v 4.0 -preset veryfast -crf 26 -maxrate 1500k -bufsize 3000k -r 24 -pix_fmt yuv420p -video_track_timescale 12288 -an"
+ENC_FLAGS="-c:v libx264 -profile:v high -level:v 4.0 -preset veryfast -crf 18 -maxrate 2500k -bufsize 5000k -r 24 -pix_fmt yuv420p -video_track_timescale 12288 -an"
 
 ffmpeg -i "$BLENDED_MASTER" -loop 1 -framerate 24 -i "$ASSETS_DIR/spotify.png" \
   -filter_complex "\
@@ -182,22 +182,6 @@ ffmpeg -i "$BLENDED_MASTER" -loop 1 -framerate 24 -i "$ASSETS_DIR/spotify.png" \
 
 ffmpeg -i "$BLENDED_MASTER" -t "$MID_DUR" $ENC_FLAGS "$TMP_DIR/middle.mp4" -y -loglevel error
 ffmpeg -i "$BLENDED_MASTER" -t "$OUTRO_DUR" -vf "fade=t=out:st=${OUTRO_FADE_START}:d=2" $ENC_FLAGS "$TMP_DIR/outro.mp4" -y -loglevel error
-
-VIDEO_LIST="$TMP_DIR/video_list.txt"
-echo "file '$TMP_DIR/intro.mp4'" > "$VIDEO_LIST"
-for ((i=1; i<=NUM_MIDS; i++)); do
-    echo "file '$TMP_DIR/middle.mp4'" >> "$VIDEO_LIST"
-done
-echo "file '$TMP_DIR/outro.mp4'" >> "$VIDEO_LIST"
-
-export OUT_FILENAME="${SAFE_TITLE}.mp4"
-export OUT_FILE="$OUTPUT_DIR/$OUT_FILENAME"
-
-ffmpeg -f concat -safe 0 -i "$VIDEO_LIST" -i "$MERGED_AUDIO" \
-  -map 0:v:0 -map 1:a:0 -c:v copy -c:a copy -t "$DURATION" \
-  -movflags +faststart "$OUT_FILE" -y -loglevel warning
-
-echo "✅ Video created: $OUT_FILE ($(du -h "$OUT_FILE" | cut -f1))"
 
 # --- 6. GITHUB RELEASES & WALLPAPER ARCHIVE ---
 if [ -f "$OUT_FILE" ]; then
