@@ -171,7 +171,7 @@ fi
 export THUMBNAIL_FILE="$OUTPUT_DIR/thumbnail.jpg"
 
 # Increased borderw to 25 for a very thick, punchy black outline
-ffmpeg -i "$TMP_DIR/wallpaper.jpg" -vf "scale=1920:1080,drawtext=fontfile=$FONT_FILE:text='$TARGET_WORD':fontsize=300:fontcolor=white:borderw=25:bordercolor=black:x=(w-text_w)/2:y=(h-text_h)/2" -frames:v 1 "$THUMBNAIL_FILE" -y -loglevel error
+ffmpeg -i "$TMP_DIR/wallpaper.jpg" -vf "scale=1920:1080,drawtext=fontfile=$FONT_FILE:text='$TARGET_WORD':fontsize=220:fontcolor=white:borderw=18:bordercolor=black:x=(w-text_w)/2:y=(h-text_h)/2" -frames:v 1 "$THUMBNAIL_FILE" -y -loglevel error
 # --- 5. MERGE AUDIO ---
 echo "🔊 Step 2: Merging audio tracks..."
 RAW_AUDIO="$TMP_DIR/raw_audio.m4a"
