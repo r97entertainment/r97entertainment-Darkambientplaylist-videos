@@ -14,7 +14,7 @@ export SCRATCHES_FOLDER_ID="1PPBV5ix-gOkCamAL5pyeLyIjCf1kawH4"
 export SPOTIFY_FILE_ID="1fIcEuSGsSBaRWO9OsFZYCTcynhMs7XOh"
 
 # The Google Drive Folder where the finished video will be uploaded
-export FINISHED_VIDEO_FOLDER_ID="YOUR_APPS_SCRIPT_INBOX_FOLDER_ID_HERE" 
+export FINISHED_VIDEO_FOLDER_ID="1g-6hFIa2fdndbWvf5_CKOPnZ8w_D_Gy6" 
 
 # Set duration to ~60 minutes
 export MIN_DURATION=3600  # 60 minutes
