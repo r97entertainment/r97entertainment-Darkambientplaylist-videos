@@ -171,7 +171,7 @@ fi
 
 export THUMBNAIL_FILE="$OUTPUT_DIR/thumbnail.jpg"
 
-# Font size set to 120. Border and shadow completely removed for pure white text.
+# FIXED: Font size set to 120. Border and shadow completely removed for pure white text.
 ffmpeg -i "$TMP_DIR/wallpaper.jpg" -vf "scale=1920:1080,drawtext=fontfile=$FONT_FILE:text='$TARGET_WORD':fontsize=120:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2" -frames:v 1 "$THUMBNAIL_FILE" -y -loglevel error
 
 # --- 5. MERGE AUDIO ---
