@@ -163,7 +163,6 @@ print(final_text)
 
 echo "Extracted Word for Thumbnail: $TARGET_WORD"
 
-# Automatically download a thick, cinematic font if you haven't uploaded one
 FONT_FILE="$ASSETS_DIR/font.ttf"
 if [ ! -f "$FONT_FILE" ]; then
     echo "Downloading extra-bold cinematic font..."
@@ -172,8 +171,8 @@ fi
 
 export THUMBNAIL_FILE="$OUTPUT_DIR/thumbnail.jpg"
 
-# Font size set to 80 with a sharp 3px black outline
-ffmpeg -i "$TMP_DIR/wallpaper.jpg" -vf "scale=1920:1080,drawtext=fontfile=$FONT_FILE:text='$TARGET_WORD':fontsize=80:fontcolor=white:borderw=3:bordercolor=black:x=(w-text_w)/2:y=(h-text_h)/2" -frames:v 1 "$THUMBNAIL_FILE" -y -loglevel error
+# Font size set to 120. Border and shadow completely removed for pure white text.
+ffmpeg -i "$TMP_DIR/wallpaper.jpg" -vf "scale=1920:1080,drawtext=fontfile=$FONT_FILE:text='$TARGET_WORD':fontsize=120:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2" -frames:v 1 "$THUMBNAIL_FILE" -y -loglevel error
 
 # --- 5. MERGE AUDIO ---
 echo "🔊 Step 2: Merging audio tracks..."
@@ -204,12 +203,12 @@ print(f'{intro} {mid} {num_mids} {outro} {fade_start}')
 
 BLENDED_MASTER="$TMP_DIR/blended_master.mp4"
 
-# Blend mode set to 'screen' with 100% opacity for crisp scratches
+# FIXED MAGENTA: Forced rgb24 color space before blending to prevent the pink glitch
 ffmpeg -loop 1 -framerate 24 -i "$TMP_DIR/wallpaper.jpg" \
   -stream_loop -1 -i "$ASSETS_DIR/scratches.mp4" -t 15 \
   -filter_complex "\
-    [0:v]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,setsar=1,fps=24,format=yuv420p[bg];\
-    [1:v]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,setsar=1,fps=24,format=yuv420p[scr];\
+    [0:v]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,setsar=1,fps=24,format=rgb24[bg];\
+    [1:v]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,setsar=1,fps=24,format=rgb24[scr];\
     [bg][scr]blend=all_mode=screen:all_opacity=1.0,format=yuv420p[v]" \
   -map "[v]" -c:v libx264 -preset veryfast -crf 20 -an "$BLENDED_MASTER" -y -loglevel error
 
