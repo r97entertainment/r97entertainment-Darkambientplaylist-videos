@@ -12,9 +12,7 @@ export ARCHIVE_FOLDER_ID="190G9vBYRwQb4VqHGfmGExdjhH0phgA4t"
 export AUDIO_FOLDER_ID="1cMseGL3iBVP6y28ouZBbyeVR6sWPtSid"
 export SCRATCHES_FOLDER_ID="1PPBV5ix-gOkCamAL5pyeLyIjCf1kawH4"
 export SPOTIFY_FILE_ID="1fIcEuSGsSBaRWO9OsFZYCTcynhMs7XOh"
-
-# The Google Drive Folder where the finished video will be uploaded
-export FINISHED_VIDEO_FOLDER_ID="1g-6hFIa2fdndbWvf5_CKOPnZ8w_D_Gy6" 
+export SPOTIFY_PLAYLIST="https://open.spotify.com/playlist/0s4PNkZa5d7asmDZdGKJAn?go=1"
 
 # Set duration to ~60 minutes
 export MIN_DURATION=3600  # 60 minutes
@@ -35,7 +33,7 @@ if [ -f "$ASSETS_DIR/spotify.png" ]; then export NEED_SPOTIFY_DOWNLOAD="0"; else
 
 echo "📥 Step 1: Fetching Wallpaper & Batch Audio..."
 
-# --- 3. PYTHON GOOGLE DRIVE FETCHER ---
+# --- 3. PYTHON GOOGLE DRIVE FETCHER (ASSETS ONLY) ---
 python3 - << 'EOF'
 import os, json, random, subprocess
 from google.oauth2 import service_account
@@ -52,6 +50,7 @@ need_scratches = os.environ["NEED_SCRATCHES_DOWNLOAD"] == "1"
 need_spotify = os.environ["NEED_SPOTIFY_DOWNLOAD"] == "1"
 min_dur = float(os.environ["MIN_DURATION"])
 
+# Uses your existing Service Account for downloading assets
 sa_info = json.loads(os.environ["GDRIVE_SERVICE_ACCOUNT"])
 creds = service_account.Credentials.from_service_account_info(
     sa_info, scopes=["https://www.googleapis.com/auth/drive"]
@@ -140,7 +139,6 @@ echo "🔊 Step 2: Merging audio tracks..."
 RAW_AUDIO="$TMP_DIR/raw_audio.m4a"
 MERGED_AUDIO="$TMP_DIR/merged_audio.m4a"
 
-# Quality restored to 128k
 ffmpeg -f concat -safe 0 -i "$TMP_DIR/audio_list.txt" \
   -vn -ar 44100 -ac 2 -c:a aac -b:a 128k "$RAW_AUDIO" -y -loglevel error
 
@@ -165,7 +163,6 @@ print(f'{intro} {mid} {num_mids} {outro} {fade_start}')
 
 BLENDED_MASTER="$TMP_DIR/blended_master.mp4"
 
-# Quality restored to 1080p, 24 FPS
 ffmpeg -loop 1 -framerate 24 -i "$TMP_DIR/wallpaper.jpg" \
   -stream_loop -1 -i "$ASSETS_DIR/scratches.mp4" -t 15 \
   -filter_complex "\
@@ -174,7 +171,6 @@ ffmpeg -loop 1 -framerate 24 -i "$TMP_DIR/wallpaper.jpg" \
     [bg][scr]blend=all_mode=overlay:all_opacity=0.2,format=yuv420p[v]" \
   -map "[v]" -c:v libx264 -preset veryfast -crf 20 -an "$BLENDED_MASTER" -y -loglevel error
 
-# High-quality encoding flags
 ENC_FLAGS="-c:v libx264 -profile:v high -level:v 4.0 -preset veryfast -crf 26 -maxrate 1500k -bufsize 3000k -r 24 -pix_fmt yuv420p -video_track_timescale 12288 -an"
 
 ffmpeg -i "$BLENDED_MASTER" -loop 1 -framerate 24 -i "$ASSETS_DIR/spotify.png" \
@@ -203,19 +199,33 @@ ffmpeg -f concat -safe 0 -i "$VIDEO_LIST" -i "$MERGED_AUDIO" \
 
 echo "✅ Video created: $OUT_FILE ($(du -h "$OUT_FILE" | cut -f1))"
 
-# --- 6. UPLOAD TO GOOGLE DRIVE & ARCHIVE WALLPAPER ---
+# --- 6. GITHUB RELEASES & WALLPAPER ARCHIVE ---
 if [ -f "$OUT_FILE" ]; then
-    echo "📤 Step 4: Uploading directly to Google Drive..."
+    echo "📤 Step 4: Pushing to GitHub Releases..."
     
-    python3 - << 'EOF_UPLOAD'
+    # Create the YouTube Description to pass into the Release Notes
+    DESCRIPTION="🎧 Listen on Spotify:
+$SPOTIFY_PLAYLIST
+
+🚀 Want your track featured:
+https://www.fiverr.com/hitblazz/promote-your-ambient-music-tracks
+
+#aesthetic #snow #winter #moody #cinematic #vibes #nyc #snowing #nature"
+
+    # Use GitHub CLI to create the release and upload the 106MB video
+    TAG_NAME="video-$(date +%s)"
+    CLEAN_TITLE=$(echo "$SELECTED_TITLE" | tr '_' ' ')
+    
+    gh release create "$TAG_NAME" "$OUT_FILE" --title "$CLEAN_TITLE" --notes "$DESCRIPTION"
+    echo "✅ GitHub Release created successfully!"
+    
+    # Clean up the used wallpaper using the Service Account
+    echo "📦 Archiving Wallpaper..."
+    python3 - << 'EOF2'
 import os, json
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
 
-out_file = os.environ["OUT_FILE"]
-out_filename = os.environ["OUT_FILENAME"]
-output_folder = os.environ["FINISHED_VIDEO_FOLDER_ID"]
 wp_id = open(os.path.join(os.environ["TMP_DIR"], "wp_id.txt")).read().strip()
 archive_folder = os.environ["ARCHIVE_FOLDER_ID"]
 wallpaper_folder = os.environ["WALLPAPER_FOLDER_ID"]
@@ -224,22 +234,14 @@ sa_info = json.loads(os.environ["GDRIVE_SERVICE_ACCOUNT"])
 creds = service_account.Credentials.from_service_account_info(sa_info, scopes=["https://www.googleapis.com/auth/drive"])
 service = build("drive", "v3", credentials=creds)
 
-# 1. Upload the finished video
-print(f"Uploading {out_filename}...")
-file_metadata = {'name': out_filename, 'parents': [output_folder]}
-media = MediaFileUpload(out_file, mimetype='video/mp4', resumable=True)
-uploaded_file = service.files().create(body=file_metadata, media_body=media, fields='id').execute()
-print(f"✅ Video uploaded successfully! Drive File ID: {uploaded_file.get('id')}")
-
-# 2. Archive the used wallpaper
 service.files().update(
     fileId=wp_id,
     addParents=archive_folder,
     removeParents=wallpaper_folder,
     fields='id, parents'
 ).execute()
-print("📦 Wallpaper archived successfully.")
-EOF_UPLOAD
+print("✅ Wallpaper archived successfully.")
+EOF2
 
 fi
 
