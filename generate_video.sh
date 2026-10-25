@@ -14,7 +14,6 @@ export SCRATCHES_FOLDER_ID="1PPBV5ix-gOkCamAL5pyeLyIjCf1kawH4"
 export SPOTIFY_FILE_ID="1fIcEuSGsSBaRWO9OsFZYCTcynhMs7XOh"
 export SPOTIFY_PLAYLIST="https://open.spotify.com/playlist/0s4PNkZa5d7asmDZdGKJAn?go=1"
 
-# Set duration to ~60 minutes
 export MIN_DURATION=3600  # 60 minutes
 export MAX_DURATION=3900  # 65 minutes
 
@@ -33,7 +32,7 @@ if [ -f "$ASSETS_DIR/spotify.png" ]; then export NEED_SPOTIFY_DOWNLOAD="0"; else
 
 echo "📥 Step 1: Fetching Wallpaper & Batch Audio..."
 
-# --- 3. PYTHON GOOGLE DRIVE FETCHER (ASSETS ONLY) ---
+# --- 3. PYTHON GOOGLE DRIVE FETCHER ---
 python3 - << 'EOF'
 import os, json, random, subprocess
 from google.oauth2 import service_account
@@ -50,7 +49,6 @@ need_scratches = os.environ["NEED_SCRATCHES_DOWNLOAD"] == "1"
 need_spotify = os.environ["NEED_SPOTIFY_DOWNLOAD"] == "1"
 min_dur = float(os.environ["MIN_DURATION"])
 
-# Uses your existing Service Account for downloading assets
 sa_info = json.loads(os.environ["GDRIVE_SERVICE_ACCOUNT"])
 creds = service_account.Credentials.from_service_account_info(
     sa_info, scopes=["https://www.googleapis.com/auth/drive"]
@@ -134,7 +132,42 @@ with open(os.path.join(tmp_dir, "audio_list.txt"), "w") as list_file:
         list_file.write(f"file '{p}'\n")
 EOF
 
-# --- 4. MERGE AUDIO ---
+# --- 4. THUMBNAIL GENERATION ---
+echo "🖼️ Generating Thumbnail..."
+
+# Python script to extract the first word and convert digits to text (e.g. 2am -> Two am)
+FIRST_WORD=$(python3 -c "
+import sys
+title = sys.argv[1].strip()
+first_word = title.split()[0] if title else 'Music'
+
+num_map = {'1':'One', '2':'Two', '3':'Three', '4':'Four', '5':'Five', 
+           '6':'Six', '7':'Seven', '8':'Eight', '9':'Nine', '0':'Zero'}
+
+res = ''
+for char in first_word:
+    if char in num_map:
+        res += num_map[char] + ' '
+    else:
+        res += char
+
+res = res.replace(' a m', ' am').replace(' p m', ' pm').strip().title()
+print(res)
+" "$SELECTED_TITLE")
+
+echo "Extracted First Word for Thumbnail: $FIRST_WORD"
+
+# Check for font.ttf in assets. If missing, download a free Google Font so the script doesn't crash
+FONT_FILE="$ASSETS_DIR/font.ttf"
+if [ ! -f "$FONT_FILE" ]; then
+    echo "Downloading default font..."
+    curl -L -o "$FONT_FILE" "https://github.com/google/fonts/raw/main/ofl/montserrat/Montserrat-Bold.ttf"
+fi
+
+export THUMBNAIL_FILE="$OUTPUT_DIR/thumbnail.jpg"
+ffmpeg -i "$TMP_DIR/wallpaper.jpg" -vf "scale=1920:1080,drawtext=fontfile=$FONT_FILE:text='$FIRST_WORD':fontsize=250:fontcolor=white:shadowcolor=black:shadowx=5:shadowy=5:x=(w-text_w)/2:y=(h-text_h)/2" -frames:v 1 "$THUMBNAIL_FILE" -y -loglevel error
+
+# --- 5. MERGE AUDIO ---
 echo "🔊 Step 2: Merging audio tracks..."
 RAW_AUDIO="$TMP_DIR/raw_audio.m4a"
 MERGED_AUDIO="$TMP_DIR/merged_audio.m4a"
@@ -149,7 +182,7 @@ ffmpeg -i "$RAW_AUDIO" \
   -af "afade=t=in:st=0:d=2,afade=t=out:st=${AUDIO_FADE_START}:d=2" \
   -c:a aac -b:a 128k "$MERGED_AUDIO" -y -loglevel error
 
-# --- 5. RENDER VIDEO ---
+# --- 6. RENDER VIDEO ---
 echo "🎬 Step 3: Blending visuals..."
 read INTRO_DUR MID_DUR NUM_MIDS OUTRO_DUR OUTRO_FADE_START <<< $(python3 -c "
 dur = float('$DURATION')
@@ -163,15 +196,16 @@ print(f'{intro} {mid} {num_mids} {outro} {fade_start}')
 
 BLENDED_MASTER="$TMP_DIR/blended_master.mp4"
 
+# FIXED SCRATCHES: Changed blend mode to "screen" and opacity to 1.0 (100%) so the black background disappears
 ffmpeg -loop 1 -framerate 24 -i "$TMP_DIR/wallpaper.jpg" \
   -stream_loop -1 -i "$ASSETS_DIR/scratches.mp4" -t 15 \
   -filter_complex "\
     [0:v]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,setsar=1,fps=24,format=yuv420p[bg];\
     [1:v]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,setsar=1,fps=24,format=yuv420p[scr];\
-    [bg][scr]blend=all_mode=overlay:all_opacity=0.35,format=yuv420p[v]" \
-  -map "[v]" -c:v libx264 -preset veryfast -crf 18 -an "$BLENDED_MASTER" -y -loglevel error
+    [bg][scr]blend=all_mode=screen:all_opacity=1.0,format=yuv420p[v]" \
+  -map "[v]" -c:v libx264 -preset veryfast -crf 20 -an "$BLENDED_MASTER" -y -loglevel error
 
-ENC_FLAGS="-c:v libx264 -profile:v high -level:v 4.0 -preset veryfast -crf 18 -maxrate 2500k -bufsize 5000k -r 24 -pix_fmt yuv420p -video_track_timescale 12288 -an"
+ENC_FLAGS="-c:v libx264 -profile:v high -level:v 4.0 -preset veryfast -crf 26 -maxrate 1500k -bufsize 3000k -r 24 -pix_fmt yuv420p -video_track_timescale 12288 -an"
 
 ffmpeg -i "$BLENDED_MASTER" -loop 1 -framerate 24 -i "$ASSETS_DIR/spotify.png" \
   -filter_complex "\
@@ -183,11 +217,26 @@ ffmpeg -i "$BLENDED_MASTER" -loop 1 -framerate 24 -i "$ASSETS_DIR/spotify.png" \
 ffmpeg -i "$BLENDED_MASTER" -t "$MID_DUR" $ENC_FLAGS "$TMP_DIR/middle.mp4" -y -loglevel error
 ffmpeg -i "$BLENDED_MASTER" -t "$OUTRO_DUR" -vf "fade=t=out:st=${OUTRO_FADE_START}:d=2" $ENC_FLAGS "$TMP_DIR/outro.mp4" -y -loglevel error
 
-# --- 6. GITHUB RELEASES & WALLPAPER ARCHIVE ---
+VIDEO_LIST="$TMP_DIR/video_list.txt"
+echo "file '$TMP_DIR/intro.mp4'" > "$VIDEO_LIST"
+for ((i=1; i<=NUM_MIDS; i++)); do
+    echo "file '$TMP_DIR/middle.mp4'" >> "$VIDEO_LIST"
+done
+echo "file '$TMP_DIR/outro.mp4'" >> "$VIDEO_LIST"
+
+export OUT_FILENAME="${SAFE_TITLE}.mp4"
+export OUT_FILE="$OUTPUT_DIR/$OUT_FILENAME"
+
+ffmpeg -f concat -safe 0 -i "$VIDEO_LIST" -i "$MERGED_AUDIO" \
+  -map 0:v:0 -map 1:a:0 -c:v copy -c:a copy -t "$DURATION" \
+  -movflags +faststart "$OUT_FILE" -y -loglevel warning
+
+echo "✅ Video created: $OUT_FILE ($(du -h "$OUT_FILE" | cut -f1))"
+
+# --- 7. GITHUB RELEASES & CLEANUP ---
 if [ -f "$OUT_FILE" ]; then
     echo "📤 Step 4: Pushing to GitHub Releases..."
     
-    # Create the YouTube Description to pass into the Release Notes
     DESCRIPTION="🎧 Listen on Spotify:
 $SPOTIFY_PLAYLIST
 
@@ -196,12 +245,21 @@ https://www.fiverr.com/hitblazz/promote-your-ambient-music-tracks
 
 #aesthetic #snow #winter #moody #cinematic #vibes #nyc #snowing #nature"
 
-    # Use GitHub CLI to create the release and upload the 106MB video
     TAG_NAME="video-$(date +%s)"
     CLEAN_TITLE=$(echo "$SELECTED_TITLE" | tr '_' ' ')
     
-    gh release create "$TAG_NAME" "$OUT_FILE" --title "$CLEAN_TITLE" --notes "$DESCRIPTION"
+    # Upload BOTH the Video and the Thumbnail to the Release
+    gh release create "$TAG_NAME" "$OUT_FILE" "$THUMBNAIL_FILE" --title "$CLEAN_TITLE" --notes "$DESCRIPTION"
     echo "✅ GitHub Release created successfully!"
+    
+    # NEW: Automatically delete all older releases to save storage space
+    echo "🧹 Cleaning up old releases to save space..."
+    gh release list --limit 100 | awk '{print $1}' | grep -v "$TAG_NAME" | while read -r OLD_TAG; do
+        if [ -n "$OLD_TAG" ]; then
+            gh release delete "$OLD_TAG" -y --cleanup-tag || true
+            echo "Deleted old release: $OLD_TAG"
+        fi
+    done
     
     # Clean up the used wallpaper using the Service Account
     echo "📦 Archiving Wallpaper..."
