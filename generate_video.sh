@@ -172,8 +172,8 @@ fi
 
 export THUMBNAIL_FILE="$OUTPUT_DIR/thumbnail.jpg"
 
-# Font size set to 160 with a sharp 6px black outline
-ffmpeg -i "$TMP_DIR/wallpaper.jpg" -vf "scale=1920:1080,drawtext=fontfile=$FONT_FILE:text='$TARGET_WORD':fontsize=160:fontcolor=white:borderw=6:bordercolor=black:x=(w-text_w)/2:y=(h-text_h)/2" -frames:v 1 "$THUMBNAIL_FILE" -y -loglevel error
+# Font size set to 80 with a sharp 3px black outline
+ffmpeg -i "$TMP_DIR/wallpaper.jpg" -vf "scale=1920:1080,drawtext=fontfile=$FONT_FILE:text='$TARGET_WORD':fontsize=80:fontcolor=white:borderw=3:bordercolor=black:x=(w-text_w)/2:y=(h-text_h)/2" -frames:v 1 "$THUMBNAIL_FILE" -y -loglevel error
 
 # --- 5. MERGE AUDIO ---
 echo "🔊 Step 2: Merging audio tracks..."
@@ -261,18 +261,17 @@ https://www.fiverr.com/hitblazz/promote-your-ambient-music-tracks
     echo "✅ GitHub Release created successfully!"
     
     # ---------------------------------------------------------
-    # HARD CLEANUP: Wipes out old releases AND their frozen tags
+    # SMART CLEANUP: Keeps the 5 most recent releases, deletes the rest
     # ---------------------------------------------------------
-    echo "🧹 Cleaning up old releases and tags to save space..."
+    echo "🧹 Cleaning up old releases (Keeping latest 5 for Zapier)..."
     
-    gh release list --limit 100 | awk '{print $1}' | grep '^video-' | grep -v "$TAG_NAME" | while read -r OLD_TAG; do
-        gh release delete "$OLD_TAG" -y --cleanup-tag || true
-    done
-    
-    git fetch --tags
-    git tag -l "video-*" | grep -v "$TAG_NAME" | while read -r LEFTOVER_TAG; do
-        git push --delete origin "$LEFTOVER_TAG" || true
-        echo "Deleted old tag: $LEFTOVER_TAG"
+    # List all releases, skip the 5 newest ones, and delete the rest
+    gh release list --limit 100 | awk '{print $1}' | grep '^video-' | tail -n +6 | while read -r OLD_TAG; do
+        if [ -n "$OLD_TAG" ]; then
+            echo "Deleting old release: $OLD_TAG"
+            gh release delete "$OLD_TAG" -y --cleanup-tag || echo "⚠️ Failed to delete release (check workflow permissions)"
+            git push --delete origin "$OLD_TAG" || true
+        fi
     done
     
     # Clean up the used wallpaper using the Service Account
