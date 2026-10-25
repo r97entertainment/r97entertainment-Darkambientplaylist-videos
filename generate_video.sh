@@ -135,37 +135,42 @@ EOF
 # --- 4. THUMBNAIL GENERATION ---
 echo "🖼️ Generating Thumbnail..."
 
-# Python script to extract the first word and convert digits to text (e.g. 2am -> Two am)
-FIRST_WORD=$(python3 -c "
+# Grab the LAST word, convert digits to text, make it lowercase, and append a period.
+TARGET_WORD=$(python3 -c "
 import sys
 title = sys.argv[1].strip()
-first_word = title.split()[0] if title else 'Music'
+last_word = title.split()[-1].lower() if title else 'music'
 
-num_map = {'1':'One', '2':'Two', '3':'Three', '4':'Four', '5':'Five', 
-           '6':'Six', '7':'Seven', '8':'Eight', '9':'Nine', '0':'Zero'}
+num_map = {'1':'one', '2':'two', '3':'three', '4':'four', '5':'five', 
+           '6':'six', '7':'seven', '8':'eight', '9':'nine', '0':'zero'}
 
 res = ''
-for char in first_word:
+for char in last_word:
     if char in num_map:
-        res += num_map[char] + ' '
+        res += num_map[char]
     else:
         res += char
 
-res = res.replace(' a m', ' am').replace(' p m', ' pm').strip().title()
+res = res.replace(' a m', 'am').replace(' p m', 'pm').strip()
+if not res.endswith('.'):
+    res += '.'
+
 print(res)
 " "$SELECTED_TITLE")
 
-echo "Extracted First Word for Thumbnail: $FIRST_WORD"
+echo "Extracted Word for Thumbnail: $TARGET_WORD"
 
-# Check for font.ttf in assets. If missing, download a free Google Font so the script doesn't crash
+# Downloads a heavy, extra-bold font to match the reference image
 FONT_FILE="$ASSETS_DIR/font.ttf"
 if [ ! -f "$FONT_FILE" ]; then
-    echo "Downloading default font..."
-    curl -L -o "$FONT_FILE" "https://github.com/google/fonts/raw/main/ofl/montserrat/Montserrat-Bold.ttf"
+    echo "Downloading extra-bold default font..."
+    curl -L -o "$FONT_FILE" "https://github.com/google/fonts/raw/main/ofl/montserrat/Montserrat-Black.ttf"
 fi
 
 export THUMBNAIL_FILE="$OUTPUT_DIR/thumbnail.jpg"
-ffmpeg -i "$TMP_DIR/wallpaper.jpg" -vf "scale=1920:1080,drawtext=fontfile=$FONT_FILE:text='$FIRST_WORD':fontsize=250:fontcolor=white:shadowcolor=black:shadowx=5:shadowy=5:x=(w-text_w)/2:y=(h-text_h)/2" -frames:v 1 "$THUMBNAIL_FILE" -y -loglevel error
+
+# Replaced shadow with borderw=12:bordercolor=black to match the crisp reference outline
+ffmpeg -i "$TMP_DIR/wallpaper.jpg" -vf "scale=1920:1080,drawtext=fontfile=$FONT_FILE:text='$TARGET_WORD':fontsize=300:fontcolor=white:borderw=12:bordercolor=black:x=(w-text_w)/2:y=(h-text_h)/2" -frames:v 1 "$THUMBNAIL_FILE" -y -loglevel error
 
 # --- 5. MERGE AUDIO ---
 echo "🔊 Step 2: Merging audio tracks..."
@@ -196,7 +201,7 @@ print(f'{intro} {mid} {num_mids} {outro} {fade_start}')
 
 BLENDED_MASTER="$TMP_DIR/blended_master.mp4"
 
-# FIXED SCRATCHES: Changed blend mode to "screen" and opacity to 1.0 (100%) so the black background disappears
+# FIXED SCRATCHES: Uses screen blend mode at 100% opacity
 ffmpeg -loop 1 -framerate 24 -i "$TMP_DIR/wallpaper.jpg" \
   -stream_loop -1 -i "$ASSETS_DIR/scratches.mp4" -t 15 \
   -filter_complex "\
@@ -248,17 +253,24 @@ https://www.fiverr.com/hitblazz/promote-your-ambient-music-tracks
     TAG_NAME="video-$(date +%s)"
     CLEAN_TITLE=$(echo "$SELECTED_TITLE" | tr '_' ' ')
     
-    # Upload BOTH the Video and the Thumbnail to the Release
     gh release create "$TAG_NAME" "$OUT_FILE" "$THUMBNAIL_FILE" --title "$CLEAN_TITLE" --notes "$DESCRIPTION"
     echo "✅ GitHub Release created successfully!"
     
-    # NEW: Automatically delete all older releases to save storage space
-    echo "🧹 Cleaning up old releases to save space..."
-    gh release list --limit 100 | awk '{print $1}' | grep -v "$TAG_NAME" | while read -r OLD_TAG; do
-        if [ -n "$OLD_TAG" ]; then
-            gh release delete "$OLD_TAG" -y --cleanup-tag || true
-            echo "Deleted old release: $OLD_TAG"
-        fi
+    # ---------------------------------------------------------
+    # HARD CLEANUP: Wipes out old releases AND their frozen tags
+    # ---------------------------------------------------------
+    echo "🧹 Cleaning up old releases and tags to save space..."
+    
+    # Delete the Release objects
+    gh release list --limit 100 | awk '{print $1}' | grep '^video-' | grep -v "$TAG_NAME" | while read -r OLD_TAG; do
+        gh release delete "$OLD_TAG" -y --cleanup-tag || true
+    done
+    
+    # Force delete any leftover Git Tags from the repository
+    git fetch --tags
+    git tag -l "video-*" | grep -v "$TAG_NAME" | while read -r LEFTOVER_TAG; do
+        git push --delete origin "$LEFTOVER_TAG" || true
+        echo "Deleted old tag: $LEFTOVER_TAG"
     done
     
     # Clean up the used wallpaper using the Service Account
