@@ -14,6 +14,7 @@ export SCRATCHES_FOLDER_ID="1PPBV5ix-gOkCamAL5pyeLyIjCf1kawH4"
 export SPOTIFY_FILE_ID="1fIcEuSGsSBaRWO9OsFZYCTcynhMs7XOh"
 export SPOTIFY_PLAYLIST="https://open.spotify.com/playlist/0s4PNkZa5d7asmDZdGKJAn?go=1"
 
+# Set duration to ~60 minutes
 export MIN_DURATION=3600  # 60 minutes
 export MAX_DURATION=3900  # 65 minutes
 
@@ -149,29 +150,31 @@ num_map = {'1':'one', '2':'two', '3':'three', '4':'four', '5':'five',
            '6':'six', '7':'seven', '8':'eight', '9':'nine', '0':'zero'}
 res = ''.join(num_map.get(c, c) for c in last)
 
-# Fix spacing for time
+# Fix spacing for time (e.g. twoam -> two am)
 if res.endswith('am') and len(res) > 2:
     res = res[:-2] + ' am'
 if res.endswith('pm') and len(res) > 2:
     res = res[:-2] + ' pm'
 
-print(f'{res}.')
+# Force strictly lowercase and append the period
+final_text = f'{res}.'.lower()
+print(final_text)
 " "$SELECTED_TITLE")
 
 echo "Extracted Word for Thumbnail: $TARGET_WORD"
 
+# Automatically download a thick, cinematic font if you haven't uploaded one
 FONT_FILE="$ASSETS_DIR/font.ttf"
-
-# Fallback just in case you forget to upload the font
 if [ ! -f "$FONT_FILE" ]; then
-    echo "⚠️ Custom font not found! Downloading fallback heavy font..."
-    curl -L -o "$FONT_FILE" "https://github.com/google/fonts/raw/main/ofl/roboto/Roboto-Black.ttf"
+    echo "Downloading extra-bold cinematic font..."
+    curl -L -o "$FONT_FILE" "https://github.com/google/fonts/raw/main/ofl/montserrat/Montserrat-Black.ttf"
 fi
 
 export THUMBNAIL_FILE="$OUTPUT_DIR/thumbnail.jpg"
 
-# Increased borderw to 25 for a very thick, punchy black outline
-ffmpeg -i "$TMP_DIR/wallpaper.jpg" -vf "scale=1920:1080,drawtext=fontfile=$FONT_FILE:text='$TARGET_WORD':fontsize=220:fontcolor=white:borderw=18:bordercolor=black:x=(w-text_w)/2:y=(h-text_h)/2" -frames:v 1 "$THUMBNAIL_FILE" -y -loglevel error
+# Font size set to 160 with a sharp 6px black outline
+ffmpeg -i "$TMP_DIR/wallpaper.jpg" -vf "scale=1920:1080,drawtext=fontfile=$FONT_FILE:text='$TARGET_WORD':fontsize=160:fontcolor=white:borderw=6:bordercolor=black:x=(w-text_w)/2:y=(h-text_h)/2" -frames:v 1 "$THUMBNAIL_FILE" -y -loglevel error
+
 # --- 5. MERGE AUDIO ---
 echo "🔊 Step 2: Merging audio tracks..."
 RAW_AUDIO="$TMP_DIR/raw_audio.m4a"
@@ -201,7 +204,7 @@ print(f'{intro} {mid} {num_mids} {outro} {fade_start}')
 
 BLENDED_MASTER="$TMP_DIR/blended_master.mp4"
 
-# FIXED SCRATCHES: Uses screen blend mode at 100% opacity
+# Blend mode set to 'screen' with 100% opacity for crisp scratches
 ffmpeg -loop 1 -framerate 24 -i "$TMP_DIR/wallpaper.jpg" \
   -stream_loop -1 -i "$ASSETS_DIR/scratches.mp4" -t 15 \
   -filter_complex "\
@@ -253,6 +256,7 @@ https://www.fiverr.com/hitblazz/promote-your-ambient-music-tracks
     TAG_NAME="video-$(date +%s)"
     CLEAN_TITLE=$(echo "$SELECTED_TITLE" | tr '_' ' ')
     
+    # Upload BOTH the Video and the Thumbnail to the Release
     gh release create "$TAG_NAME" "$OUT_FILE" "$THUMBNAIL_FILE" --title "$CLEAN_TITLE" --notes "$DESCRIPTION"
     echo "✅ GitHub Release created successfully!"
     
@@ -261,12 +265,10 @@ https://www.fiverr.com/hitblazz/promote-your-ambient-music-tracks
     # ---------------------------------------------------------
     echo "🧹 Cleaning up old releases and tags to save space..."
     
-    # Delete the Release objects
     gh release list --limit 100 | awk '{print $1}' | grep '^video-' | grep -v "$TAG_NAME" | while read -r OLD_TAG; do
         gh release delete "$OLD_TAG" -y --cleanup-tag || true
     done
     
-    # Force delete any leftover Git Tags from the repository
     git fetch --tags
     git tag -l "video-*" | grep -v "$TAG_NAME" | while read -r LEFTOVER_TAG; do
         git push --delete origin "$LEFTOVER_TAG" || true
