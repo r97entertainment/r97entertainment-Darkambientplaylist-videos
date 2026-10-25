@@ -135,43 +135,43 @@ EOF
 # --- 4. THUMBNAIL GENERATION ---
 echo "🖼️ Generating Thumbnail..."
 
-# Grab the LAST word, convert digits to text, make it lowercase, and append a period.
 TARGET_WORD=$(python3 -c "
-import sys
+import sys, re
 title = sys.argv[1].strip()
-last_word = title.split()[-1].lower() if title else 'music'
+words = title.split()
+last = words[-1].lower() if words else 'music'
 
+# Strip any weird punctuation from the title word
+last = re.sub(r'[^a-z0-9]', '', last)
+
+# Convert digits to text
 num_map = {'1':'one', '2':'two', '3':'three', '4':'four', '5':'five', 
            '6':'six', '7':'seven', '8':'eight', '9':'nine', '0':'zero'}
+res = ''.join(num_map.get(c, c) for c in last)
 
-res = ''
-for char in last_word:
-    if char in num_map:
-        res += num_map[char]
-    else:
-        res += char
+# Fix spacing for time
+if res.endswith('am') and len(res) > 2:
+    res = res[:-2] + ' am'
+if res.endswith('pm') and len(res) > 2:
+    res = res[:-2] + ' pm'
 
-res = res.replace(' a m', 'am').replace(' p m', 'pm').strip()
-if not res.endswith('.'):
-    res += '.'
-
-print(res)
+print(f'{res}.')
 " "$SELECTED_TITLE")
 
 echo "Extracted Word for Thumbnail: $TARGET_WORD"
 
-# Downloads a heavy, extra-bold font to match the reference image
 FONT_FILE="$ASSETS_DIR/font.ttf"
+
+# Fallback just in case you forget to upload the font
 if [ ! -f "$FONT_FILE" ]; then
-    echo "Downloading extra-bold default font..."
-    curl -L -o "$FONT_FILE" "https://github.com/google/fonts/raw/main/ofl/montserrat/Montserrat-Black.ttf"
+    echo "⚠️ Custom font not found! Downloading fallback heavy font..."
+    curl -L -o "$FONT_FILE" "https://github.com/google/fonts/raw/main/ofl/roboto/Roboto-Black.ttf"
 fi
 
 export THUMBNAIL_FILE="$OUTPUT_DIR/thumbnail.jpg"
 
-# Replaced shadow with borderw=12:bordercolor=black to match the crisp reference outline
-ffmpeg -i "$TMP_DIR/wallpaper.jpg" -vf "scale=1920:1080,drawtext=fontfile=$FONT_FILE:text='$TARGET_WORD':fontsize=300:fontcolor=white:borderw=12:bordercolor=black:x=(w-text_w)/2:y=(h-text_h)/2" -frames:v 1 "$THUMBNAIL_FILE" -y -loglevel error
-
+# Increased borderw to 25 for a very thick, punchy black outline
+ffmpeg -i "$TMP_DIR/wallpaper.jpg" -vf "scale=1920:1080,drawtext=fontfile=$FONT_FILE:text='$TARGET_WORD':fontsize=300:fontcolor=white:borderw=25:bordercolor=black:x=(w-text_w)/2:y=(h-text_h)/2" -frames:v 1 "$THUMBNAIL_FILE" -y -loglevel error
 # --- 5. MERGE AUDIO ---
 echo "🔊 Step 2: Merging audio tracks..."
 RAW_AUDIO="$TMP_DIR/raw_audio.m4a"
