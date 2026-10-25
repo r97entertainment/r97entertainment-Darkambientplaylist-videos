@@ -1,4 +1,4 @@
-name: Generate Under-15m Video
+name: Generate 1 hour Video
 
 on:
   workflow_dispatch: # Allows manual 1-click test runs in GitHub Actions
