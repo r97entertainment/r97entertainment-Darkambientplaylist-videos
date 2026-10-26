@@ -14,9 +14,8 @@ export SCRATCHES_FOLDER_ID="1PPBV5ix-gOkCamAL5pyeLyIjCf1kawH4"
 export SPOTIFY_FILE_ID="1fIcEuSGsSBaRWO9OsFZYCTcynhMs7XOh"
 export SPOTIFY_PLAYLIST="https://open.spotify.com/playlist/0s4PNkZa5d7asmDZdGKJAn?go=1"
 
-# Set duration to ~60 minutes
-export MIN_DURATION=3600  # 60 minutes
-export MAX_DURATION=3900  # 65 minutes
+export MIN_DURATION=3600  
+export MAX_DURATION=3900  
 
 # --- 2. ASSET CHECK & RANDOM TITLE GENERATION ---
 if [ ! -f "$ASSETS_DIR/titles.txt" ]; then
@@ -140,17 +139,19 @@ TARGET_WORD=$(python3 -c "
 import sys, re
 title = sys.argv[1].strip()
 words = title.split()
-last = words[-1].lower() if words else 'music'
+
+# FIXED: Grabs the FIRST word instead of the last
+first = words[0].lower() if words else 'music'
 
 # Strip any weird punctuation from the title word
-last = re.sub(r'[^a-z0-9]', '', last)
+first = re.sub(r'[^a-z0-9]', '', first)
 
 # Convert digits to text
 num_map = {'1':'one', '2':'two', '3':'three', '4':'four', '5':'five', 
            '6':'six', '7':'seven', '8':'eight', '9':'nine', '0':'zero'}
-res = ''.join(num_map.get(c, c) for c in last)
+res = ''.join(num_map.get(c, c) for c in first)
 
-# Fix spacing for time (e.g. twoam -> two am)
+# Fix spacing for time
 if res.endswith('am') and len(res) > 2:
     res = res[:-2] + ' am'
 if res.endswith('pm') and len(res) > 2:
@@ -171,8 +172,8 @@ fi
 
 export THUMBNAIL_FILE="$OUTPUT_DIR/thumbnail.jpg"
 
-# Font size increased to 150. Pure white text.
-ffmpeg -i "$TMP_DIR/wallpaper.jpg" -vf "scale=1920:1080,drawtext=fontfile=$FONT_FILE:text='$TARGET_WORD':fontsize=150:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2" -frames:v 1 "$THUMBNAIL_FILE" -y -loglevel error
+# FIXED SQUISH: Added crop=w='min(iw\,ih*(16/9))':h='min(ih\,iw/(16/9))',scale=1920:1080 to perfectly center-crop
+ffmpeg -i "$TMP_DIR/wallpaper.jpg" -vf "crop=w='min(iw\,ih*(16/9))':h='min(ih\,iw/(16/9))',scale=1920:1080,drawtext=fontfile=$FONT_FILE:text='$TARGET_WORD':fontsize=150:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2" -frames:v 1 "$THUMBNAIL_FILE" -y -loglevel error
 
 # --- 5. MERGE AUDIO ---
 echo "🔊 Step 2: Merging audio tracks..."
@@ -203,12 +204,12 @@ print(f'{intro} {mid} {num_mids} {outro} {fade_start}')
 
 BLENDED_MASTER="$TMP_DIR/blended_master.mp4"
 
-# FIXED MAGENTA: Forced GBRP (Planar RGB) color space before blending to perfectly isolate color math
+# FIXED SQUISH: Replaced force_original_aspect_ratio=increase with a strict proportional center crop
 ffmpeg -loop 1 -framerate 24 -i "$TMP_DIR/wallpaper.jpg" \
   -stream_loop -1 -i "$ASSETS_DIR/scratches.mp4" -t 15 \
   -filter_complex "\
-    [0:v]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,setsar=1,fps=24,format=gbrp[bg];\
-    [1:v]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,setsar=1,fps=24,format=gbrp[scr];\
+    [0:v]crop=w='min(iw\,ih*(16/9))':h='min(ih\,iw/(16/9))',scale=1920:1080,setsar=1,fps=24,format=gbrp[bg];\
+    [1:v]scale=1920:1080,setsar=1,fps=24,format=gbrp[scr];\
     [bg][scr]blend=all_mode=screen:all_opacity=1.0,format=yuv420p[v]" \
   -map "[v]" -c:v libx264 -preset veryfast -crf 20 -an "$BLENDED_MASTER" -y -loglevel error
 
@@ -255,25 +256,18 @@ https://www.fiverr.com/hitblazz/promote-your-ambient-music-tracks
     TAG_NAME="video-$(date +%s)"
     CLEAN_TITLE=$(echo "$SELECTED_TITLE" | tr '_' ' ')
     
-    # Upload BOTH the Video and the Thumbnail to the Release
     gh release create "$TAG_NAME" "$OUT_FILE" "$THUMBNAIL_FILE" --title "$CLEAN_TITLE" --notes "$DESCRIPTION"
     echo "✅ GitHub Release created successfully!"
     
-    # ---------------------------------------------------------
-    # SMART CLEANUP: Keeps the 5 most recent releases, deletes the rest
-    # ---------------------------------------------------------
     echo "🧹 Cleaning up old releases (Keeping latest 5 for Zapier)..."
-    
-    # List all releases, skip the 5 newest ones, and delete the rest
     gh release list --limit 100 | awk '{print $1}' | grep '^video-' | tail -n +6 | while read -r OLD_TAG; do
         if [ -n "$OLD_TAG" ]; then
             echo "Deleting old release: $OLD_TAG"
-            gh release delete "$OLD_TAG" -y --cleanup-tag || echo "⚠️ Failed to delete release (check workflow permissions)"
+            gh release delete "$OLD_TAG" -y --cleanup-tag || true
             git push --delete origin "$OLD_TAG" || true
         fi
     done
     
-    # Clean up the used wallpaper using the Service Account
     echo "📦 Archiving Wallpaper..."
     python3 - << 'EOF2'
 import os, json
