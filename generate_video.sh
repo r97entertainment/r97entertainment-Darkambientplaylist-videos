@@ -259,10 +259,18 @@ https://www.fiverr.com/hitblazz/promote-your-ambient-music-tracks
     gh release create "$TAG_NAME" "$OUT_FILE" "$THUMBNAIL_FILE" --title "$CLEAN_TITLE" --notes "$DESCRIPTION"
     echo "✅ GitHub Release created successfully!"
     
-    echo "🧹 Cleaning up old releases (Keeping latest 5 for Zapier)..."
-    gh release list --limit 100 | awk '{print $1}' | grep '^video-' | tail -n +6 | while read -r OLD_TAG; do
+    # ---------------------------------------------------------
+    # AGGRESSIVE CLEANUP: Deletes ALL old releases and tags except the current one
+    # ---------------------------------------------------------
+    echo "🧹 Cleaning up old releases and tags to save space..."
+    
+    # Force fetch all tags from the remote so the runner knows they exist
+    git fetch --tags --force
+    
+    # List all tags starting with 'video-', ignore the current one, and delete the rest
+    git tag -l "video-*" | grep -v "$TAG_NAME" | while read -r OLD_TAG; do
         if [ -n "$OLD_TAG" ]; then
-            echo "Deleting old release: $OLD_TAG"
+            echo "Deleting old release and tag: $OLD_TAG"
             gh release delete "$OLD_TAG" -y --cleanup-tag || true
             git push --delete origin "$OLD_TAG" || true
         fi
