@@ -1,9 +1,9 @@
 name: Generate 1 hour Video
 
 on:
-  workflow_dispatch: # Allows manual 1-click test runs
+  workflow_dispatch:
   schedule:
-    - cron: '30 13 * * *' # Runs every day at 13:30 UTC (7:00 PM IST)
+    - cron: '30 9 * * *'
 
 permissions:
   contents: write
