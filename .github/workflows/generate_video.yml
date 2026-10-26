@@ -1,0 +1,31 @@
+name: Generate 1 hour Video
+
+on:
+  workflow_dispatch: # Allows manual 1-click test runs in GitHub Actions
+
+permissions:
+  contents: write
+
+jobs:
+  build-video:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install FFmpeg & Python Google Drive Client
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ffmpeg
+          pip install --quiet google-api-python-client google-auth
+
+      - name: Run Video Generator Script
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GDRIVE_SERVICE_ACCOUNT: ${{ secrets.GDRIVE_SERVICE_ACCOUNT }}
+        run: |
+          chmod +x ./generate_video.sh
+          ./generate_video.sh
