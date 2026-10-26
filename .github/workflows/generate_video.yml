@@ -1,7 +1,9 @@
 name: Generate 1 hour Video
 
 on:
-  workflow_dispatch: # Allows manual 1-click test runs in GitHub Actions
+  workflow_dispatch: # Allows manual 1-click test runs
+  schedule:
+    - cron: '30 13 * * *' # Runs every day at 13:30 UTC (7:00 PM IST)
 
 permissions:
   contents: write
