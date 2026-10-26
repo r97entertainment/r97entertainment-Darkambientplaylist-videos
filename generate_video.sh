@@ -172,8 +172,8 @@ fi
 
 export THUMBNAIL_FILE="$OUTPUT_DIR/thumbnail.jpg"
 
-# FIXED SQUISH: Added crop=w='min(iw\,ih*(16/9))':h='min(ih\,iw/(16/9))',scale=1920:1080 to perfectly center-crop
-ffmpeg -i "$TMP_DIR/wallpaper.jpg" -vf "crop=w='min(iw\,ih*(16/9))':h='min(ih\,iw/(16/9))',scale=1920:1080,drawtext=fontfile=$FONT_FILE:text='$TARGET_WORD':fontsize=150:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2" -frames:v 1 "$THUMBNAIL_FILE" -y -loglevel error
+# FIXED SQUISH: Forces aspect ratio increase to fill 1920x1080, then crops center.
+ffmpeg -i "$TMP_DIR/wallpaper.jpg" -vf "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,drawtext=fontfile=$FONT_FILE:text='$TARGET_WORD':fontsize=150:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2" -frames:v 1 "$THUMBNAIL_FILE" -y -loglevel error
 
 # --- 5. MERGE AUDIO ---
 echo "🔊 Step 2: Merging audio tracks..."
@@ -204,12 +204,12 @@ print(f'{intro} {mid} {num_mids} {outro} {fade_start}')
 
 BLENDED_MASTER="$TMP_DIR/blended_master.mp4"
 
-# FIXED SQUISH: Replaced force_original_aspect_ratio=increase with a strict proportional center crop
+# FIXED SQUISH: Added scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080
 ffmpeg -loop 1 -framerate 24 -i "$TMP_DIR/wallpaper.jpg" \
   -stream_loop -1 -i "$ASSETS_DIR/scratches.mp4" -t 15 \
   -filter_complex "\
-    [0:v]crop=w='min(iw\,ih*(16/9))':h='min(ih\,iw/(16/9))',scale=1920:1080,setsar=1,fps=24,format=gbrp[bg];\
-    [1:v]scale=1920:1080,setsar=1,fps=24,format=gbrp[scr];\
+    [0:v]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,setsar=1,fps=24,format=gbrp[bg];\
+    [1:v]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,setsar=1,fps=24,format=gbrp[scr];\
     [bg][scr]blend=all_mode=screen:all_opacity=1.0,format=yuv420p[v]" \
   -map "[v]" -c:v libx264 -preset veryfast -crf 20 -an "$BLENDED_MASTER" -y -loglevel error
 
@@ -260,19 +260,23 @@ https://www.fiverr.com/hitblazz/promote-your-ambient-music-tracks
     echo "✅ GitHub Release created successfully!"
     
     # ---------------------------------------------------------
-    # AGGRESSIVE CLEANUP: Deletes ALL old releases and tags except the current one
+    # SMART CLEANUP: Keeps the latest 3 releases, deletes the rest
     # ---------------------------------------------------------
-    echo "🧹 Cleaning up old releases and tags to save space..."
+    echo "🧹 Cleaning up old releases (Keeping latest 3 for Zapier)..."
     
-    # Force fetch all tags from the remote so the runner knows they exist
-    git fetch --tags --force
-    
-    # List all tags starting with 'video-', ignore the current one, and delete the rest
-    git tag -l "video-*" | grep -v "$TAG_NAME" | while read -r OLD_TAG; do
+    # List all releases, skip the 3 newest ones, and delete the rest
+    gh release list --limit 100 | awk '{print $1}' | grep '^video-' | tail -n +4 | while read -r OLD_TAG; do
         if [ -n "$OLD_TAG" ]; then
-            echo "Deleting old release and tag: $OLD_TAG"
+            echo "Deleting old release: $OLD_TAG"
             gh release delete "$OLD_TAG" -y --cleanup-tag || true
-            git push --delete origin "$OLD_TAG" || true
+        fi
+    done
+    
+    # Delete leftover floating tags that aren't attached to a release
+    git fetch --tags --force
+    git tag -l "video-*" | sort -rV | tail -n +4 | while read -r LEFTOVER_TAG; do
+        if [ -n "$LEFTOVER_TAG" ]; then
+            git push --delete origin "$LEFTOVER_TAG" || true
         fi
     done
     
