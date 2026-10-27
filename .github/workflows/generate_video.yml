@@ -3,7 +3,7 @@ name: Generate 1 hour Video
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 9 * * *'
+    - cron: '30 4 * * *'
 
 permissions:
   contents: write
