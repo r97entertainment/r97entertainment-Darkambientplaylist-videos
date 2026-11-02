@@ -14,6 +14,8 @@ export SCRATCHES_FOLDER_ID="1PPBV5ix-gOkCamAL5pyeLyIjCf1kawH4"
 export SPOTIFY_FILE_ID="1fIcEuSGsSBaRWO9OsFZYCTcynhMs7XOh"
 export SPOTIFY_PLAYLIST="https://open.spotify.com/playlist/7de3PjT9RXz0qhzdXjl34c?go=1"
 export APPLE_MUSIC_PLAYLIST="https://music.apple.com/in/playlist/dark-ambient-playlist/pl.u-r2yBDbPCREqBKRZ"
+export YOUTUBE_MUSIC_PLAYLIST="https://music.youtube.com/playlist?list=PLJoTxH8aW35XwA_sFqMgbAzCae8LIdaWn"
+export AMAZON_MUSIC_PLAYLIST="https://music.amazon.com/user-playlists/1661fcf9d5a345ae8a288b32472248f0i8n0"
 
 export MIN_DURATION=3600  
 export MAX_DURATION=3900  
@@ -228,11 +230,17 @@ echo "✅ Video created: $OUT_FILE ($(du -h "$OUT_FILE" | cut -f1))"
 if [ -f "$OUT_FILE" ]; then
     echo "📤 Step 4: Pushing to GitHub Releases..."
     
-    DESCRIPTION="🎧 Listen on Spotify:
+DESCRIPTION="🎧 Listen on Spotify:
 $SPOTIFY_PLAYLIST
 
 🎵 Listen on Apple Music:
 $APPLE_MUSIC_PLAYLIST
+
+▶️ Listen on YouTube Music:
+$YOUTUBE_MUSIC_PLAYLIST
+
+🎧 Listen on Amazon Music:
+$AMAZON_MUSIC_PLAYLIST
 
 🚀 Want your track featured:
 https://www.fiverr.com/hitblazz/promote-your-ambient-music-tracks
