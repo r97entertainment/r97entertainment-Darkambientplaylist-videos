@@ -13,7 +13,7 @@ export AUDIO_FOLDER_ID="1IgGUF3cbHUU5YpG7s5QLKRBDQsuV81FU"
 export SCRATCHES_FOLDER_ID="1PPBV5ix-gOkCamAL5pyeLyIjCf1kawH4"
 export SPOTIFY_FILE_ID="1fIcEuSGsSBaRWO9OsFZYCTcynhMs7XOh"
 export SPOTIFY_PLAYLIST="https://open.spotify.com/playlist/7de3PjT9RXz0qhzdXjl34c?go=1"
-export APPLE_MUSIC_PLAYLIST="https://music.apple.com/in/playlist/dark-ambient-playlist/pl.u-r2yBDbPCREqBKRZ"
+export APPLE_MUSIC_PLAYLIST="https://music.apple.com/in/playlist/pl.u-r2yBDbPCREqBKRZ"
 export YOUTUBE_MUSIC_PLAYLIST="https://music.youtube.com/playlist?list=PLJoTxH8aW35XwA_sFqMgbAzCae8LIdaWn"
 export AMAZON_MUSIC_PLAYLIST="https://music.amazon.com/user-playlists/1661fcf9d5a345ae8a288b32472248f0i8n0"
 
