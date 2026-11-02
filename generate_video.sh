@@ -12,7 +12,8 @@ export ARCHIVE_FOLDER_ID="190G9vBYRwQb4VqHGfmGExdjhH0phgA4t"
 export AUDIO_FOLDER_ID="1IgGUF3cbHUU5YpG7s5QLKRBDQsuV81FU"
 export SCRATCHES_FOLDER_ID="1PPBV5ix-gOkCamAL5pyeLyIjCf1kawH4"
 export SPOTIFY_FILE_ID="1fIcEuSGsSBaRWO9OsFZYCTcynhMs7XOh"
-export SPOTIFY_PLAYLIST="https://open.spotify.com/playlist/0s4PNkZa5d7asmDZdGKJAn?go=1"
+export SPOTIFY_PLAYLIST="https://open.spotify.com/playlist/7de3PjT9RXz0qhzdXjl34c?go=1"
+export APPLE_MUSIC_PLAYLIST="https://music.apple.com/in/playlist/dark-ambient-playlist/pl.u-r2yBDbPCREqBKRZ"
 
 export MIN_DURATION=3600  
 export MAX_DURATION=3900  
@@ -229,6 +230,9 @@ if [ -f "$OUT_FILE" ]; then
     
     DESCRIPTION="🎧 Listen on Spotify:
 $SPOTIFY_PLAYLIST
+
+🎵 Listen on Apple Music:
+$APPLE_MUSIC_PLAYLIST
 
 🚀 Want your track featured:
 https://www.fiverr.com/hitblazz/promote-your-ambient-music-tracks
