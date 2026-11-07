@@ -7,10 +7,10 @@ OUTPUT_DIR="./output"
 export ASSETS_DIR="./assets"
 mkdir -p "$OUTPUT_DIR" "$ASSETS_DIR" "$TMP_DIR/audio"
 
-export WALLPAPER_FOLDER_ID="1fgHvSyJQzNbc0etlfSyu3rnHfXne3oTi"
+export WALLPAPER_FOLDER_ID="149aORCWm0JSojnN8qswB8ol4g2zRgohf"
 export ARCHIVE_FOLDER_ID="190G9vBYRwQb4VqHGfmGExdjhH0phgA4t" 
 export AUDIO_FOLDER_ID="1IgGUF3cbHUU5YpG7s5QLKRBDQsuV81FU"
-export SCRATCHES_FOLDER_ID="1PPBV5ix-gOkCamAL5pyeLyIjCf1kawH4"
+export EFFECTS_FOLDER_ID="1PPBV5ix-gOkCamAL5pyeLyIjCf1kawH4"
 export SPOTIFY_FILE_ID="1fIcEuSGsSBaRWO9OsFZYCTcynhMs7XOh"
 export SPOTIFY_PLAYLIST="https://open.spotify.com/playlist/7de3PjT9RXz0qhzdXjl34c?go=1"
 export APPLE_MUSIC_PLAYLIST="https://music.apple.com/in/playlist/pl.u-r2yBDbPCREqBKRZ"
@@ -19,6 +19,9 @@ export AMAZON_MUSIC_PLAYLIST="https://music.amazon.com/user-playlists/1661fcf9d5
 
 export MIN_DURATION=3600  
 export MAX_DURATION=3900  
+
+# Add your Webhook URL here
+export WEBHOOK_URL="https://connect.pabbly.com/webhook-listener/webhook/IjU3NjIwNTY1MDYzZTA0MzI1MjZlNTUzYyI_3D_pc/IjU3NjcwNTZiMDYzNDA0MzI1MjZjNTUzNjUxMzci_pc"
 
 # --- 2. ASSET CHECK & RANDOM TITLE GENERATION ---
 if [ ! -f "$ASSETS_DIR/titles.txt" ]; then
@@ -30,7 +33,7 @@ SELECTED_TITLE=$(shuf -n 1 "$ASSETS_DIR/titles.txt")
 export SAFE_TITLE=$(echo "$SELECTED_TITLE" | tr ' ' '_')
 echo "🏷️ Selected Title: $SELECTED_TITLE -> $SAFE_TITLE.mp4"
 
-if [ -f "$ASSETS_DIR/scratches.mp4" ]; then export NEED_SCRATCHES_DOWNLOAD="0"; else export NEED_SCRATCHES_DOWNLOAD="1"; fi
+if [ -f "$ASSETS_DIR/effect.mp4" ]; then export NEED_EFFECT_DOWNLOAD="0"; else export NEED_EFFECT_DOWNLOAD="1"; fi
 if [ -f "$ASSETS_DIR/spotify.png" ]; then export NEED_SPOTIFY_DOWNLOAD="0"; else export NEED_SPOTIFY_DOWNLOAD="1"; fi
 
 echo "📥 Step 1: Fetching Wallpaper & Batch Audio..."
@@ -46,9 +49,9 @@ tmp_dir = os.environ["TMP_DIR"]
 assets_dir = os.environ["ASSETS_DIR"]
 wallpaper_folder = os.environ["WALLPAPER_FOLDER_ID"]
 audio_folder = os.environ["AUDIO_FOLDER_ID"]
-scratches_folder = os.environ["SCRATCHES_FOLDER_ID"]
+effects_folder = os.environ["EFFECTS_FOLDER_ID"]
 spotify_file_id = os.environ["SPOTIFY_FILE_ID"]
-need_scratches = os.environ["NEED_SCRATCHES_DOWNLOAD"] == "1"
+need_effect = os.environ["NEED_EFFECT_DOWNLOAD"] == "1"
 need_spotify = os.environ["NEED_SPOTIFY_DOWNLOAD"] == "1"
 min_dur = float(os.environ["MIN_DURATION"])
 
@@ -81,9 +84,9 @@ download_file(wp["id"], os.path.join(tmp_dir, "wallpaper.jpg"))
 with open(os.path.join(tmp_dir, "wp_id.txt"), "w") as f:
     f.write(wp["id"])
 
-if need_scratches:
-    scr_res = service.files().list(q=f"name = 'scratches.mp4' and trashed=false", pageSize=1, fields="files(id)").execute()
-    if scr_res.get("files"): download_file(scr_res["files"][0]["id"], os.path.join(assets_dir, "scratches.mp4"))
+if need_effect:
+    eff_res = service.files().list(q=f"'{effects_folder}' in parents and mimeType contains 'video/' and trashed=false", pageSize=1, fields="files(id)").execute()
+    if eff_res.get("files"): download_file(eff_res["files"][0]["id"], os.path.join(assets_dir, "effect.mp4"))
 
 if need_spotify:
     try: download_file(spotify_file_id, os.path.join(assets_dir, "spotify.png"))
@@ -137,15 +140,13 @@ EOF
 
 # --- 4. THUMBNAIL GENERATION ---
 echo "🖼️ Generating Thumbnail..."
-
 TARGET_WORD=$(python3 -c "
-import sys
+import sys, re
 title = sys.argv[1].strip()
 words = title.split()
-
-# FIXED: Grabs the FIRST word exactly as is, keeps numbers, appends period.
 first = words[0].lower() if words else 'music'
-final_text = f'{first}.'
+res = re.sub(r'[^a-z0-9]', '', first)
+final_text = f'{res}.'.lower()
 print(final_text)
 " "$SELECTED_TITLE")
 
@@ -169,46 +170,70 @@ MERGED_AUDIO="$TMP_DIR/merged_audio.m4a"
 ffmpeg -f concat -safe 0 -i "$TMP_DIR/audio_list.txt" \
   -vn -ar 44100 -ac 2 -c:a aac -b:a 128k "$RAW_AUDIO" -y -loglevel error
 
-DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$RAW_AUDIO")
-AUDIO_FADE_START=$(awk -v d="$DURATION" 'BEGIN { printf "%.2f", (d > 2) ? d - 2 : 0 }')
+DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$RAW_AUDIO" | tr -d '\n' | tr -d '\r')
+AUDIO_FADE_START=$(awk -v d="$DURATION" 'BEGIN { printf "%.2f", (d > 3) ? d - 3 : 0 }')
 
+# 3-second audio fades
 ffmpeg -i "$RAW_AUDIO" \
-  -af "afade=t=in:st=0:d=2,afade=t=out:st=${AUDIO_FADE_START}:d=2" \
+  -af "afade=t=in:st=0:d=3,afade=t=out:st=${AUDIO_FADE_START}:d=3" \
   -c:a aac -b:a 128k "$MERGED_AUDIO" -y -loglevel error
 
 # --- 6. RENDER VIDEO ---
-echo "🎬 Step 3: Blending visuals..."
-read INTRO_DUR MID_DUR NUM_MIDS OUTRO_DUR OUTRO_FADE_START <<< $(python3 -c "
+echo "🎬 Step 3: Fast chunking with synchronized loop..."
+
+# Dynamically measure the exact length of the effect video
+EFFECT_DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$ASSETS_DIR/effect.mp4" | tr -d '\n' | tr -d '\r')
+if ! [[ $EFFECT_DUR =~ ^[0-9]+(\.[0-9]+)?$ ]]; then EFFECT_DUR=10.0; fi
+
+read INTRO_DUR MID_DUR NUM_MIDS OUTRO_DUR OUTRO_FADE_START CHUNK_DUR <<< $(python3 -c "
+import math
 dur = float('$DURATION')
-intro = 8.0
-mid = 10.0
-num_mids = int((dur - intro - 4.0) // mid)
-outro = round(dur - intro - (num_mids * mid), 2)
-fade_start = round(max(0.1, outro - 2.0), 2)
-print(f'{intro} {mid} {num_mids} {outro} {fade_start}')
+effect_dur = float('$EFFECT_DUR')
+if effect_dur <= 0: effect_dur = 10.0
+
+# Create a chunk large enough to fit the Spotify logo, ending EXACTLY on an effect loop boundary
+multiplier = max(1, math.ceil(10.0 / effect_dur))
+chunk_dur = round(effect_dur * multiplier, 3)
+
+intro_dur = chunk_dur
+mid_dur = chunk_dur
+num_mids = int((dur - intro_dur) // mid_dur)
+outro_dur = round(dur - intro_dur - (num_mids * mid_dur), 2)
+
+# Ensure the outro is at least 3 seconds for the fade-out
+if outro_dur < 3.0 and num_mids > 0:
+    num_mids -= 1
+    outro_dur += mid_dur
+
+fade_start = round(max(0.1, outro_dur - 3.0), 2)
+print(f'{intro_dur} {mid_dur} {num_mids} {outro_dur} {fade_start} {chunk_dur}')
 ")
 
 BLENDED_MASTER="$TMP_DIR/blended_master.mp4"
 
+# Generate a master chunk that matches your effect's exact duration
 ffmpeg -loop 1 -framerate 24 -i "$TMP_DIR/wallpaper.jpg" \
-  -stream_loop -1 -i "$ASSETS_DIR/scratches.mp4" -t 15 \
+  -stream_loop -1 -i "$ASSETS_DIR/effect.mp4" -t "$CHUNK_DUR" \
   -filter_complex "\
     [0:v]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,setsar=1,fps=24,format=gbrp[bg];\
-    [1:v]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,setsar=1,fps=24,format=gbrp[scr];\
-    [bg][scr]blend=all_mode=screen:all_opacity=1.0,format=yuv420p[v]" \
+    [1:v]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,setsar=1,fps=24,format=gbrp[eff];\
+    [bg][eff]blend=all_mode=screen:all_opacity=1.0,format=yuv420p[v]" \
   -map "[v]" -c:v libx264 -preset veryfast -crf 20 -an "$BLENDED_MASTER" -y -loglevel error
 
 ENC_FLAGS="-c:v libx264 -profile:v high -level:v 4.0 -preset veryfast -crf 26 -maxrate 1500k -bufsize 3000k -r 24 -pix_fmt yuv420p -video_track_timescale 12288 -an"
 
+# Apply 3-second video fade in to intro
 ffmpeg -i "$BLENDED_MASTER" -loop 1 -framerate 24 -i "$ASSETS_DIR/spotify.png" \
   -filter_complex "\
-    [0:v]fade=t=in:st=0:d=2[base];\
+    [0:v]fade=t=in:st=0:d=3[base];\
     [1:v]scale=180:-1,format=rgba,fade=t=in:st=1:d=1:alpha=1,fade=t=out:st=6:d=1:alpha=1[logo];\
     [base][logo]overlay=x=30:y=30:enable='between(t,1,7)',format=yuv420p[outv]" \
   -map "[outv]" -t "$INTRO_DUR" $ENC_FLAGS "$TMP_DIR/intro.mp4" -y -loglevel error
 
 ffmpeg -i "$BLENDED_MASTER" -t "$MID_DUR" $ENC_FLAGS "$TMP_DIR/middle.mp4" -y -loglevel error
-ffmpeg -i "$BLENDED_MASTER" -t "$OUTRO_DUR" -vf "fade=t=out:st=${OUTRO_FADE_START}:d=2" $ENC_FLAGS "$TMP_DIR/outro.mp4" -y -loglevel error
+
+# Apply 3-second video fade out to outro
+ffmpeg -i "$BLENDED_MASTER" -t "$OUTRO_DUR" -vf "fade=t=out:st=${OUTRO_FADE_START}:d=3" $ENC_FLAGS "$TMP_DIR/outro.mp4" -y -loglevel error
 
 VIDEO_LIST="$TMP_DIR/video_list.txt"
 echo "file '$TMP_DIR/intro.mp4'" > "$VIDEO_LIST"
@@ -253,18 +278,49 @@ https://www.fiverr.com/hitblazz/promote-your-ambient-music-tracks
     gh release create "$TAG_NAME" "$OUT_FILE" "$THUMBNAIL_FILE" --title "$CLEAN_TITLE" --notes "$DESCRIPTION"
     echo "✅ GitHub Release created successfully!"
     
-    # ---------------------------------------------------------
+   # --- 8. SEND WEBHOOK ---
+    echo "🌐 Step 5: Sending Webhook..."
+    
+    # Extract asset URLs from the release (Fixed to ignore GitHub name changes)
+    VIDEO_URL=$(gh release view "$TAG_NAME" --json assets --jq '.assets[] | select(.name | endswith(".mp4")) | .url')
+    THUMB_URL=$(gh release view "$TAG_NAME" --json assets --jq '.assets[] | select(.name == "thumbnail.jpg") | .url')
+    
+    # Generate custom caption with actual links
+    CAPTION="Listen on $SPOTIFY_PLAYLIST
+$APPLE_MUSIC_PLAYLIST
+$YOUTUBE_MUSIC_PLAYLIST
+$AMAZON_MUSIC_PLAYLIST"
+
+    # Use jq to securely build the JSON payload
+    JSON_PAYLOAD=$(jq -n \
+      --arg video "$VIDEO_URL" \
+      --arg thumb "$THUMB_URL" \
+      --arg caption "$CAPTION" \
+      '{video_url: $video, thumbnail_url: $thumb, caption: $caption}')
+
+    if [ -n "$WEBHOOK_URL" ] && [ "$WEBHOOK_URL" != "https://your-webhook-endpoint.com/here" ]; then
+        curl -s -X POST "$WEBHOOK_URL" \
+             -H "Content-Type: application/json" \
+             -d "$JSON_PAYLOAD"
+        echo -e "\n✅ Webhook dispatched successfully!"
+    else
+        echo "⚠️ WEBHOOK_URL not configured. Skipping webhook step."
+    fi
+
+  # ---------------------------------------------------------
     # SMART CLEANUP: Keeps the latest 3 releases, deletes the rest
     # ---------------------------------------------------------
     echo "🧹 Cleaning up old releases (Keeping latest 3 for Zapier)..."
     
-    gh release list --limit 100 | awk '{print $1}' | grep '^video-' | tail -n +4 | while read -r OLD_TAG; do
+    # Safely extract tag names using JSON to avoid filename space issues
+    gh release list --limit 100 --json tagName --jq '.[].tagName' | grep '^video-' | tail -n +4 | while read -r OLD_TAG; do
         if [ -n "$OLD_TAG" ]; then
-            echo "Deleting old release: $OLD_TAG"
+            echo "Deleting old release and tag: $OLD_TAG"
             gh release delete "$OLD_TAG" -y --cleanup-tag || true
         fi
     done
     
+    # Secondary cleanup for orphaned git tags on the remote
     git fetch --tags --force
     git tag -l "video-*" | sort -rV | tail -n +4 | while read -r LEFTOVER_TAG; do
         if [ -n "$LEFTOVER_TAG" ]; then
