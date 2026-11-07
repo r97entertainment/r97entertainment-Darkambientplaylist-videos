@@ -7,7 +7,7 @@ OUTPUT_DIR="./output"
 export ASSETS_DIR="./assets"
 mkdir -p "$OUTPUT_DIR" "$ASSETS_DIR" "$TMP_DIR/audio"
 
-export WALLPAPER_FOLDER_ID="149aORCWm0JSojnN8qswB8ol4g2zRgohf"
+export WALLPAPER_FOLDER_ID="1fgHvSyJQzNbc0etlfSyu3rnHfXne3oTi"
 export ARCHIVE_FOLDER_ID="190G9vBYRwQb4VqHGfmGExdjhH0phgA4t" 
 export AUDIO_FOLDER_ID="1IgGUF3cbHUU5YpG7s5QLKRBDQsuV81FU"
 export EFFECTS_FOLDER_ID="1PPBV5ix-gOkCamAL5pyeLyIjCf1kawH4"
